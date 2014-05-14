@@ -109,16 +109,6 @@ class SniffedPacket(object):
 
     def get_macPDU(self):
         return self.__macPDUByteArray
-    
-class CustomAssertFrame(object):
-    def __init__(self, date, code, line, file, **kwargs):
-        self.date = date
-        self.code = code
-        self.line = line
-        self.file = file
-        
-    def __repr__(self, *args, **kwargs):
-        return "AssertFrame with code {} @ line {} in {}, compiled on {}".format(self.code, self.line, self.file, self.date)
 
 class FrameType(object):
     BEACON = 0
@@ -526,7 +516,17 @@ class CapturedFrame(object):
         
         return "{} RssiSniff[{}]".format(self.frame, self.rssiSniff)
 
-class DissectorHandler(object):
+class CustomAssertFrame(object):
+    def __init__(self, date, code, line, file, **kwargs):
+        self.date = date
+        self.code = code
+        self.line = line
+        self.file = file
+        
+    def __repr__(self, *args, **kwargs):
+        return "AssertFrame Code[{}] Line[{}] File[{}] Compiled[{}]".format(self.code, self.line, self.file, self.date)
+    
+class PacketHandler(object):
     def __init__(self):
         stats['Dissected'] = 0
         stats["Dissection errors"]  = 0
@@ -568,8 +568,8 @@ class DissectorHandler(object):
         sys.stdout.flush()
         
     @staticmethod
-    def handleCustomFrames(pdu):
-
+    def handleCustomFrames(sniffedPacket):
+        pdu = sniffedPacket.get_macPDU()
         (debugString,) = struct.unpack_from("<5s", pdu, 0)
 
         # For example, I have implemented a generic debug packet that gets sent
@@ -582,50 +582,54 @@ class DissectorHandler(object):
             if payloadVersion is 0:
                 stats["Custom frames"] += 1
                 (date, lineNum, code) = struct.unpack_from("<6sHB", pdu, 6)
-                #                'Debug', 'date12', code, Line num
-                nameLength = len(pdu) - 5 - 6 - 1 - 2
+                #                'Debug', version,  'date12', Line num, code, fcs
+                #                 12345 ,  6     ,   789012 , 34      , 5
+                nameLength = len(pdu) - 5 - 1 - 6 - 2 - 1 - 2
                 (fileName,) = struct.unpack_from("<%ds" % nameLength, pdu, 15)
+                
+                return CustomAssertFrame(date, code, lineNum, fileName)
 
-                print "ASSERT with code {} at {} (Line {}), Compiled:{}".format(code, fileName, lineNum, date)
-                return True
-
-        return False # the frame was NOT consumed
+        return None # the frame was NOT consumed
           
-    def handle(self, frame):
+    def handleSniffedPacket(self, sniffedPacket):
         if self.__enabled is False:
             return
 
         try:
-            if (None == frame) or (len(frame.get_macPDU()) < 2):
+            if (None == sniffedPacket) or (len(sniffedPacket.get_macPDU()) < 2):
                 return
 
 
-            byteStream = frame.get_macPDU()
-            (rssiSniff, corr, crc_ok) = self.checkFrame(byteStream)
+            (rssiSniff, corr, crc_ok) = self.checkPacket(sniffedPacket.get_macPDU())
 
             if crc_ok is False:
                 stats["CRC Errors"] += 1
                 return
 
-            if True is self.handleCustomFrames(byteStream):
+            customFrame = self.handleCustomFrames(sniffedPacket)
+            if customFrame is not None:
                 # A custom, non-802.15.4 frame was received and processed
-                return
-
-            frame = IEEE15dot4FrameFactory.parse(frame)
-            capture = CapturedFrame(frame, rssiSniff, self.__annotation)
-            
-            if capture is not None:
+                capture = CapturedFrame(customFrame, rssiSniff, self.__annotation)
                 self.captures.append(capture)
                 print capture
-                # hack here!
                 sys.stdout.flush()
-
-            statsKey = {FrameType.BEACON: "Beacons",
-                         FrameType.DATA: "Data frames",
-                         FrameType.ACK: "ACKs",
-                         FrameType.MAC_CMD: "Command frames"}[frame.fcf.frametype]
-            stats[statsKey] += 1
-            stats['Dissected'] += 1
+                
+            else:
+                frame = IEEE15dot4FrameFactory.parse(sniffedPacket)
+                capture = CapturedFrame(frame, rssiSniff, self.__annotation)
+                
+                if capture is not None:
+                    self.captures.append(capture)
+                    print capture
+                    # hack here!
+                    sys.stdout.flush()
+    
+                statsKey = {FrameType.BEACON: "Beacons",
+                             FrameType.DATA: "Data frames",
+                             FrameType.ACK: "ACKs",
+                             FrameType.MAC_CMD: "Command frames"}[frame.fcf.frametype]
+                stats[statsKey] += 1
+                stats['Dissected'] += 1
             
         except Exception as e:
             logger.warn("Error dissecting frame.")
@@ -633,7 +637,7 @@ class DissectorHandler(object):
             stats["Dissection errors"] += 1
 
     @staticmethod
-    def checkFrame(packet):
+    def checkPacket(packet):
         # used to derive other values
         fcs1, fcs2 = packet[-2:]
 
@@ -895,11 +899,11 @@ if __name__ == '__main__':
     start_datetime = datetime.now()
 
 
-    dissectorHandler = DissectorHandler()
-    dissectorHandler.enable()
+    packetHandler = PacketHandler()
+    packetHandler.enable()
 
     if args.annotation is not None:
-        dissectorHandler.setAnnotation(args.annotation)
+        packetHandler.setAnnotation(args.annotation)
 
     if args.rude is False:
         h = StringIO.StringIO()
@@ -917,8 +921,8 @@ if __name__ == '__main__':
 
         print h
 
-    # Create a list of handlers to dispatch to
-    handlers = [dissectorHandler]
+    # Create a list of handlers to dispatch to, NB: handlers must have a "handleSniffedPacket" method
+    handlers = [packetHandler]
     def handlerDispatcher(timestamp, macPDU):
         """ Dispatches any received packets to all registered handlers
 
@@ -931,7 +935,7 @@ if __name__ == '__main__':
         if len(macPDU) > 0:
             packet = SniffedPacket(macPDU, timestamp)
             for handler in handlers:
-                handler.handle(packet)
+                handler.handleSniffedPacket(packet)
 
     snifferDev = CC2531EMK(handlerDispatcher, args.channel)
 
@@ -954,15 +958,15 @@ if __name__ == '__main__':
                             # running interactive. Print away
                             print 'Sniffing in channel: {:d}'.format(snifferDev.get_channel())
                         elif cmd == 'd':
-                            if dissectorHandler.isEnabled():
-                                dissectorHandler.disable()
+                            if packetHandler.isEnabled():
+                                packetHandler.disable()
                                 print "Dissector disabled"
                             else:
-                                dissectorHandler.enable()
+                                packetHandler.enable()
                                 print "Dissector enabled"
                         elif cmd == 'p':
                             logger.info('User requested print all')
-                            dissectorHandler.printAllFrames()
+                            packetHandler.printAllFrames()
                             
                         elif cmd == 'q':
                             logger.info('User requested shutdown')
@@ -976,9 +980,9 @@ if __name__ == '__main__':
                                 print "Started"
                         elif 'a' == cmd[0]:
                             if 1 == len(cmd):
-                                dissectorHandler.setAnnotation('')
+                                packetHandler.setAnnotation('')
                             else:
-                                dissectorHandler.setAnnotation(cmd[1:].strip())
+                                packetHandler.setAnnotation(cmd[1:].strip())
                         elif int(cmd) in range(11, 27):
                             snifferDev.set_channel(int(cmd))
                             print 'Sniffing in channel: %d' % (snifferDev.get_channel(),)
