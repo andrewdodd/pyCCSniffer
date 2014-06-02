@@ -296,7 +296,7 @@ class AddressingFields(object):
         return AddressingFields(length, destinationAddress, sourceAddress)
  
 class IEEE15dot4Frame(object):
-    def __init__(self, timestamp, fcf, sequenceNumber, addressing, msdu):
+    def __init__(self, timestamp, fcf, sequenceNumber, addressing, msdu, *args, **kwargs):
         self.time = datetime.now();
         self.timestamp = timestamp
         self.fcf = fcf
@@ -314,8 +314,8 @@ class IEEE15dot4Frame(object):
         return " ".join(output)
         
 class IEEE15dot4AckFrame(IEEE15dot4Frame):
-    def __init__(self, **kwargs):
-        super(IEEE15dot4AckFrame, self).__init__(**kwargs)
+    def __init__(self, frame):
+        super(IEEE15dot4AckFrame, self).__init__(**frame.__dict__)
         
     def __repr__(self, *args, **kwargs):
         output = []
@@ -325,8 +325,8 @@ class IEEE15dot4AckFrame(IEEE15dot4Frame):
         return " ".join(output)
     
 class IEEE15dot4BeaconFrame(IEEE15dot4Frame):
-    def __init__(self, frameFields, sfs, gts, pendingShortAddresses, pendingExtAddresses, beaconPayload):
-        super(IEEE15dot4BeaconFrame, self).__init__(**frameFields)
+    def __init__(self, frame, sfs, gts, pendingShortAddresses, pendingExtAddresses, beaconPayload):
+        super(IEEE15dot4BeaconFrame, self).__init__(**frame.__dict__)
         self.sfs = sfs
         self.gts = gts
         self.pendingShortAddresses = pendingShortAddresses
@@ -365,8 +365,8 @@ CommandFrameType = enum(
     
         
 class IEEE15dot4CommandFrame(IEEE15dot4Frame):
-    def __init__(self, frameFields, commandId, payload):
-        super(IEEE15dot4CommandFrame, self).__init__(**frameFields)
+    def __init__(self, frame, commandId, payload):
+        super(IEEE15dot4CommandFrame, self).__init__(**frame.__dict__)
         self.commandId = commandId
         self.command = CommandFrameType.fromValue[commandId]
         self.additionalInfo = {}
@@ -436,24 +436,20 @@ class IEEE15dot4FrameFactory(object):
         addressingFields = AddressingFields.parse(fcf, byteStream[offset:])
         offset += addressingFields.length
         
-        frameFields = {"fcf":fcf,
-                       "sequenceNumber": seqNum,
-                       "addressing":addressingFields,
-                       "timestamp":packet.get_timestamp(),
-                       "msdu":byteStream[offset:]}
+        frame = IEEE15dot4Frame(packet.get_timestamp(), fcf, seqNum, addressingFields, byteStream[offset:])
         
         if fcf.frametype is FrameType.ACK:
-            return IEEE15dot4AckFrame(**frameFields)
+            return IEEE15dot4AckFrame(frame)
         elif fcf.frametype is FrameType.BEACON:
-            return IEEE15dot4FrameFactory.__parseBeacon(frameFields, frameFields["msdu"])
+            return IEEE15dot4FrameFactory.__parseBeacon(frame)
         elif fcf.frametype is FrameType.MAC_CMD:
-            return IEEE15dot4FrameFactory.__parseMACCommand(frameFields, frameFields["msdu"])
+            return IEEE15dot4FrameFactory.__parseMACCommand(frame)
         
-        return IEEE15dot4Frame(**frameFields)
+        return frame
     
     @staticmethod
-    def __parseBeacon(frameFields, beaconMSDU, **kwargs):
-        byteStream = beaconMSDU
+    def __parseBeacon(frame, **kwargs):
+        byteStream = frame.msdu
         offset = 0
         fmt = "<HB"
         (superframeSpecification, gts) = checkAndUnpack(fmt, byteStream, offset, (0,0))
@@ -482,7 +478,7 @@ class IEEE15dot4FrameFactory(object):
             offset += struct.calcsize(fmt)
             pendingExtAddresses.append(nextExtAddress)
 
-        return IEEE15dot4BeaconFrame(frameFields,
+        return IEEE15dot4BeaconFrame(frame,
                                      SFS.parse(superframeSpecification),
                                      gts,
                                      pendingShortAddresses,
@@ -490,14 +486,14 @@ class IEEE15dot4FrameFactory(object):
                                      byteStream[offset:],)
         
     @staticmethod
-    def __parseMACCommand(frameFields, commandMSDU, **kwargs):
-        byteStream = commandMSDU
+    def __parseMACCommand(frame, **kwargs):
+        byteStream = frame.msdu
         offset = 0
         fmt = "<B"
         (commandId, ) = checkAndUnpack(fmt, byteStream, offset, (0,0))
         offset += struct.calcsize(fmt)
 
-        return IEEE15dot4CommandFrame(frameFields,
+        return IEEE15dot4CommandFrame(frame,
                                      commandId,
                                      byteStream[offset:])
         
