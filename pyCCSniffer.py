@@ -314,8 +314,8 @@ class IEEE15dot4Frame(object):
         return " ".join(output)
         
 class IEEE15dot4AckFrame(IEEE15dot4Frame):
-    def __init__(self, frame):
-        super(IEEE15dot4AckFrame, self).__init__(**frame.__dict__)
+    def __init__(self, *args, **kwargs):
+        super(IEEE15dot4AckFrame, self).__init__(*args, **kwargs)
         
     def __repr__(self, *args, **kwargs):
         output = []
@@ -325,8 +325,8 @@ class IEEE15dot4AckFrame(IEEE15dot4Frame):
         return " ".join(output)
     
 class IEEE15dot4BeaconFrame(IEEE15dot4Frame):
-    def __init__(self, frame, sfs, gts, pendingShortAddresses, pendingExtAddresses, beaconPayload):
-        super(IEEE15dot4BeaconFrame, self).__init__(**frame.__dict__)
+    def __init__(self, sfs, gts, pendingShortAddresses, pendingExtAddresses, beaconPayload, *args, **kwargs):
+        super(IEEE15dot4BeaconFrame, self).__init__( *args, **kwargs)
         self.sfs = sfs
         self.gts = gts
         self.pendingShortAddresses = pendingShortAddresses
@@ -365,8 +365,8 @@ CommandFrameType = enum(
     
         
 class IEEE15dot4CommandFrame(IEEE15dot4Frame):
-    def __init__(self, frame, commandId, payload):
-        super(IEEE15dot4CommandFrame, self).__init__(**frame.__dict__)
+    def __init__(self, commandId, payload, *args, **kwargs):
+        super(IEEE15dot4CommandFrame, self).__init__(*args, **kwargs)
         self.commandId = commandId
         self.command = CommandFrameType.fromValue[commandId]
         self.additionalInfo = {}
@@ -439,7 +439,7 @@ class IEEE15dot4FrameFactory(object):
         frame = IEEE15dot4Frame(packet.get_timestamp(), fcf, seqNum, addressingFields, byteStream[offset:])
         
         if fcf.frametype is FrameType.ACK:
-            return IEEE15dot4AckFrame(frame)
+            return IEEE15dot4AckFrame(**frame.__dict__)
         elif fcf.frametype is FrameType.BEACON:
             return IEEE15dot4FrameFactory.__parseBeacon(frame)
         elif fcf.frametype is FrameType.MAC_CMD:
@@ -478,12 +478,12 @@ class IEEE15dot4FrameFactory(object):
             offset += struct.calcsize(fmt)
             pendingExtAddresses.append(nextExtAddress)
 
-        return IEEE15dot4BeaconFrame(frame,
-                                     SFS.parse(superframeSpecification),
+        return IEEE15dot4BeaconFrame(SFS.parse(superframeSpecification),
                                      gts,
                                      pendingShortAddresses,
                                      pendingExtAddresses,
-                                     byteStream[offset:],)
+                                     byteStream[offset:],
+                                     **frame.__dict__)
         
     @staticmethod
     def __parseMACCommand(frame, **kwargs):
@@ -493,9 +493,9 @@ class IEEE15dot4FrameFactory(object):
         (commandId, ) = checkAndUnpack(fmt, byteStream, offset, (0,0))
         offset += struct.calcsize(fmt)
 
-        return IEEE15dot4CommandFrame(frame,
-                                     commandId,
-                                     byteStream[offset:])
+        return IEEE15dot4CommandFrame(commandId,
+                                     byteStream[offset:],
+                                     **frame.__dict__)
         
         
 class CapturedFrame(object):
