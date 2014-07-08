@@ -100,9 +100,10 @@ class CustomAssertFrame(object):
         self.code = code
         self.line = line
         self.file = file
-        
+        self.time = datetime.now()
+
     def __repr__(self, *args, **kwargs):
-        return "AssertFrame Code[{}] Line[{}] File[{}] Compiled[{}]".format(self.code, self.line, self.file, self.date)
+        return "AssertFrame Time[{}] Code[{}] Line[{}] File[{}] Compiled[{}]".format(self.time, self.code, self.line, self.file, self.date)
     
 class PacketHandler(object):
     def __init__(self):
