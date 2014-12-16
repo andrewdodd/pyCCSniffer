@@ -329,7 +329,7 @@ class CC2531EMK:
 
         # While the running flag is set, continue to read from the USB device
         while self.running:
-            bytesteam = self.dev.read(CC2531EMK.DATA_EP, 4096, 0, CC2531EMK.DATA_TIMEOUT)
+            bytesteam = self.dev.read(CC2531EMK.DATA_EP, 4096, timeout=CC2531EMK.DATA_TIMEOUT)
 #             print "RECV>> %s" % binascii.hexlify(bytesteam)
 
             if len(bytesteam) >= 3:
