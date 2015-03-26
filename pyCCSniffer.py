@@ -110,10 +110,13 @@ class PacketHandler(object):
         stats['Dissected'] = 0
         stats["Dissection errors"]  = 0
         stats["CRC Errors"] = 0
-        stats["Beacons"] = 0
-        stats["Data frames"] = 0
-        stats["ACKs"] = 0
-        stats["Command frames"] = 0
+        stats["Beacon"] = 0
+        stats["Data"] = 0
+        stats["Acknowledgment"] = 0
+        stats["MAC Command"] = 0
+        stats["LLDN"] = 0
+        stats["Multipurpose"] = 0
+        stats["Unknown"] = 0
         stats["Custom frames"] = 0
         self.__annotation = ''
         self.__samples = 0
@@ -203,11 +206,7 @@ class PacketHandler(object):
                     # hack here!
                     sys.stdout.flush()
     
-                statsKey = {ieee.FrameType.BEACON: "Beacons",
-                             ieee.FrameType.DATA: "Data frames",
-                             ieee.FrameType.ACK: "ACKs",
-                             ieee.FrameType.MAC_CMD: "Command frames"}[frame.fcf.frametype]
-                stats[statsKey] += 1
+                stats[ieee.FrameType.toString(frame.fcf.frametype)] += 1
                 stats['Dissected'] += 1
             
         except Exception as e:

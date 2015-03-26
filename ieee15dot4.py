@@ -53,38 +53,49 @@ class FrameType(object):
     DATA = 1
     ACK = 2
     MAC_CMD = 3
+    LLDN = 4
+    MULTIPURPOSE = 5
     UNKNOWN = 255
     MASK = 7
 
     @staticmethod
     def classify(value):
-        if (FrameType.BEACON == (FrameType.MASK & value)):
+        maskedValue = (FrameType.MASK & value)
+        if maskedValue is FrameType.BEACON:
             return FrameType.BEACON
-        if (FrameType.DATA == (FrameType.MASK & value)):
+        if maskedValue is FrameType.DATA:
             return FrameType.DATA
-        if (FrameType.ACK == (FrameType.MASK & value)):
+        if maskedValue is FrameType.ACK:
             return FrameType.ACK
-        if (FrameType.MAC_CMD == (FrameType.MASK & value)):
+        if maskedValue is FrameType.MASK:
             return FrameType.MAC_CMD
+        if maskedValue is FrameType.LLDN:
+            return FrameType.LLDN
+        if maskedValue is FrameType.MULTIPURPOSE:
+            FrameType.MULTIPURPOSE
 
         return FrameType.UNKNOWN
 
     @staticmethod
     def toString(value):
-        if (FrameType.BEACON == value):
+        if value is FrameType.BEACON:
             return "Beacon"
-        if (FrameType.DATA == value):
+        if value is FrameType.DATA:
             return "Data"
-        if (FrameType.ACK == value):
+        if value is FrameType.ACK:
             return "Acknowledgment"
-        if (FrameType.MAC_CMD == value):
+        if value is FrameType.MAC_CMD:
             return "MAC Command"
+        if value is FrameType.LLDN:
+            return "LLDN"
+        if value is FrameType.MULTIPURPOSE:
+            return "Multipurpose"
 
         return "Unknown"
 
 class AddressingMode(object):
     NONE = 0
-    RESERVED = 1
+    SIMPLE = 1
     SHORT = 2
     EXTENDED = 3
     UNKNOWN = 255
@@ -94,8 +105,8 @@ class AddressingMode(object):
     def classify(value):
         if (AddressingMode.NONE == (AddressingMode.MASK & value)):
             return AddressingMode.NONE
-        if (AddressingMode.RESERVED == (AddressingMode.MASK & value)):
-            return AddressingMode.RESERVED
+        if (AddressingMode.SIMPLE == (AddressingMode.MASK & value)):
+            return AddressingMode.SIMPLE
         if (AddressingMode.SHORT == (AddressingMode.MASK & value)):
             return AddressingMode.SHORT
         if (AddressingMode.EXTENDED == (AddressingMode.MASK & value)):
@@ -107,14 +118,14 @@ class AddressingMode(object):
     def toString(value):
         if (AddressingMode.NONE == value):
             return "None"
-        if (AddressingMode.RESERVED == value):
-            return "RESERVED"
+        if (AddressingMode.SIMPLE == value):
+            return "Simple"
         if (AddressingMode.SHORT == value):
             return "Short"
         if (AddressingMode.EXTENDED == value):
             return "Extended"
 
-        return "Unknown"
+        raise ValueError(value)
 
 class FCF(object):
     def __init__(self, frametype, securityEnabled, framePending, ackRequested, panIDCompression, destAddressingMode, frameVersion, sourceAddressingMode):
@@ -161,6 +172,14 @@ class SFS(object):
                    bool(0x01 & (sfs >> 14)),
                    bool(0x01 & (sfs >> 15)))
 
+class SimpleAddress(object):
+    def __init__(self, panId, simpleAddress):
+        self.panId = panId
+        self.address = simpleAddress
+
+    def __repr__(self, *args, **kwargs):
+        return "PAN[{:x}] SimpleAddr[{:x}]".format(self.panId, self.address)
+
 class ShortAddress(object):
     def __init__(self, panId, shortAddress):
         self.panId = panId
@@ -202,6 +221,10 @@ class AddressingFields(object):
             (destPANId, ) = struct.unpack_from("<H", byteStreamAtAddresses, length)
             length += 2
 
+        if fcf.destAddressingMode is AddressingMode.SIMPLE:
+            (destSimpleId, ) = struct.unpack_from("<B", byteStreamAtAddresses, length)
+            destinationAddress = SimpleAddress(destPANId, destSimpleId)
+            length += 1
         if fcf.destAddressingMode is AddressingMode.SHORT:
             (destShortId, ) = struct.unpack_from("<H", byteStreamAtAddresses, length)
             destinationAddress = ShortAddress(destPANId, destShortId)
@@ -225,6 +248,10 @@ class AddressingFields(object):
                 
                 srcPANId = destPANId
 
+        if fcf.sourceAddressingMode is AddressingMode.SIMPLE:
+            (srcSimpleId, ) = struct.unpack_from("<B", byteStreamAtAddresses, length)
+            sourceAddress = SimpleAddress(srcPANId, srcSimpleId)
+            length += 1
         if fcf.sourceAddressingMode is AddressingMode.SHORT:
             (srcShortId, ) = struct.unpack_from("<H", byteStreamAtAddresses, length)
             sourceAddress = ShortAddress(srcPANId, srcShortId)
@@ -385,7 +412,7 @@ class IEEE15dot4FrameFactory(object):
             return IEEE15dot4FrameFactory.__parseBeacon(frame)
         elif fcf.frametype is FrameType.MAC_CMD:
             return IEEE15dot4FrameFactory.__parseMACCommand(frame)
-        
+
         return frame
     
     @staticmethod
