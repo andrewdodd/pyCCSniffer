@@ -67,7 +67,7 @@ class FrameType(object):
             return FrameType.DATA
         if maskedValue is FrameType.ACK:
             return FrameType.ACK
-        if maskedValue is FrameType.MASK:
+        if maskedValue is FrameType.MAC_CMD:
             return FrameType.MAC_CMD
         if maskedValue is FrameType.LLDN:
             return FrameType.LLDN
