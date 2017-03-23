@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """
 
    pyCCSniffer - a python module to connect to the CC2531emk USB dongle, decode
@@ -26,24 +25,18 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 """
-
-"""
-   Functionality
-   -------------
-   Read IEEE802.15.4 frames from the default CC2531 EMK sniffer firmware, 
-   decode them and store them in memory (and maybe print them yeah!).
-
-   In interactive mode, the user can also input commands from stdin.
-"""
+from __future__ import print_function
 
 import argparse
 import binascii
+from builtins import input
 from datetime import datetime
 import errno
 import inspect
 import logging.handlers
 import select
-import StringIO
+import six
+from six import StringIO
 import struct
 import sys
 import threading
@@ -54,6 +47,15 @@ import usb.util
 
 import ieee15dot4 as ieee
 
+
+"""
+   Functionality
+   -------------
+   Read IEEE802.15.4 frames from the default CC2531 EMK sniffer firmware, 
+   decode them and store them in memory (and maybe print(them yeah)!).
+
+   In interactive mode, the user can also input commands from stdin.
+"""
 
 __version__ = '0.0.1'
 
@@ -141,12 +143,12 @@ class PacketHandler(object):
 
         
     def printAllFrames(self):
-        print "Printing all captures"
-        print "-"*40
+        print("Printing all captures")
+        print("-"*40)
         for capture in self.captures:
-            print  capture
+            print(capture)
     
-        print "-"*40
+        print("-"*40)
         sys.stdout.flush()
         
     @staticmethod
@@ -193,7 +195,7 @@ class PacketHandler(object):
                 # A custom, non-802.15.4 frame was received and processed
                 capture = CapturedFrame(customFrame, rssiSniff, self.__annotation)
                 self.captures.append(capture)
-                print capture
+                print(capture)
                 sys.stdout.flush()
                 
             else:
@@ -202,7 +204,7 @@ class PacketHandler(object):
                 
                 if capture is not None:
                     self.captures.append(capture)
-                    print capture
+                    print(capture)
                     # hack here!
                     sys.stdout.flush()
     
@@ -329,7 +331,7 @@ class CC2531EMK:
         # While the running flag is set, continue to read from the USB device
         while self.running:
             bytesteam = self.dev.read(CC2531EMK.DATA_EP, 4096, timeout=CC2531EMK.DATA_TIMEOUT)
-#             print "RECV>> %s" % binascii.hexlify(bytesteam)
+#             print("RECV>> %s" % binascii.hexlify(bytesteam))
 
             if len(bytesteam) >= 3:
                 (cmd, cmdLen) = struct.unpack_from("<BH", bytesteam)
@@ -352,7 +354,7 @@ class CC2531EMK:
 #                         logger.info('Received a command response: [%02x %02x]' % (cmd, bytesteam[0]))
 #                         # We'll only ever see this if the user asked for it, so we are
 #                         # running interactive. Print away
-#                         print 'Sniffing in channel: %d' % (bytesteam[0],)
+#                         print('Sniffing in channel: %d' % (bytesteam[0],))
 #                     else:
 #                         logger.warn("Received a command response with unknown code - CMD:%02x byte:%02x]" % (cmd, bytesteam[0]))
 
@@ -400,7 +402,7 @@ def arg_parser():
                           default = defaults['channel'],
                           help = 'Set the sniffer\'s CHANNEL. Valid range: 11-26. \
                                   (Default: %s)' % (defaults['channel'],))
-    in_group.add_argument('-a', '--annotation', type = types.StringType,
+    in_group.add_argument('-a', '--annotation', type = str,
                           help = 'Include a free-form annotation on every capture.')
 
     log_group = parser.add_argument_group('Verbosity and Logging')
@@ -444,7 +446,7 @@ def arg_parser():
     return parser.parse_args()
 
 def dump_stats():
-    s = StringIO.StringIO()
+    s = StringIO()
 
     s.write('Frame Stats:\n')
     for k, v in stats.items():
@@ -484,7 +486,7 @@ if __name__ == '__main__':
         packetHandler.setAnnotation(args.annotation)
 
     if args.rude is False:
-        h = StringIO.StringIO()
+        h = StringIO()
         h.write('Commands:\n')
         h.write('c: Print current RF Channel\n')
         h.write('h,?: Print this message\n')
@@ -497,7 +499,7 @@ if __name__ == '__main__':
 
         e = 'Unknown Command. Type h or ? for help'
 
-        print h
+        print(h)
 
     # Create a list of handlers to dispatch to, NB: handlers must have a "handleSniffedPacket" method
     handlers = [packetHandler]
@@ -525,23 +527,23 @@ if __name__ == '__main__':
             else:
                 try:
                     # use the Windows friendly "raw_input()", instead of select()
-                   cmd = raw_input('')
+                   cmd = input('')
 
                    if '' != cmd:
                         logger.debug('User input: "%s"' % (cmd,))
                         if cmd in ('h', '?'):
-                            print h
+                            print(h)
                         elif cmd == 'c':
                             # We'll only ever see this if the user asked for it, so we are
                             # running interactive. Print away
-                            print 'Sniffing in channel: {:d}'.format(snifferDev.get_channel())
+                            print('Sniffing in channel: {:d}'.format(snifferDev.get_channel()))
                         elif cmd == 'd':
                             if packetHandler.isEnabled():
                                 packetHandler.disable()
-                                print "Dissector disabled"
+                                print("Dissector disabled")
                             else:
                                 packetHandler.enable()
-                                print "Dissector enabled"
+                                print("Dissector enabled")
                         elif cmd == 'p':
                             logger.info('User requested print all')
                             packetHandler.printAllFrames()
@@ -552,10 +554,10 @@ if __name__ == '__main__':
                         elif cmd == 's':
                             if snifferDev.isRunning():
                                 snifferDev.stop()
-                                print "Stopped"
+                                print("Stopped")
                             else:
                                 snifferDev.start()
-                                print "Started"
+                                print("Started")
                         elif 'a' == cmd[0]:
                             if 1 == len(cmd):
                                 packetHandler.setAnnotation('')
@@ -563,11 +565,11 @@ if __name__ == '__main__':
                                 packetHandler.setAnnotation(cmd[1:].strip())
                         elif int(cmd) in range(11, 27):
                             snifferDev.set_channel(int(cmd))
-                            print 'Sniffing in channel: %d' % (snifferDev.get_channel(),)
+                            print('Sniffing in channel: %d' % (snifferDev.get_channel(),))
                         else:
-                            print "Channel must be from 11 to 26 inclusive."
+                            print("Channel must be from 11 to 26 inclusive.")
                 except ValueError:
-                    print e
+                    print(e)
                 except UnboundLocalError:
                     # Raised by command 'n' when -o was specified at command line
                     pass
