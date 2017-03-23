@@ -32,7 +32,7 @@ import struct
 def enum(*sequential, **named):
     """Build a new type that mocks an ENUM"""
     enums = dict(zip(sequential, range(len(sequential))), **named)
-    reverse = dict((value, key) for key, value in enums.iteritems())
+    reverse = dict((value, key) for key, value in enums.items())
     enums['fromValue'] = reverse
     return type('Enum', (), enums)
 
@@ -243,7 +243,7 @@ class AddressingFields(object):
                 length += 2
             else:
                 if fcf.destAddressingMode is AddressingMode.NONE:
-                    print "error, pan compression but no destination address!"
+                    print("error, pan compression but no destination address!")
                     destPANId = None
                 
                 srcPANId = destPANId
