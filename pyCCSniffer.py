@@ -32,7 +32,6 @@ import binascii
 from builtins import input
 from datetime import datetime
 import errno
-import inspect
 import logging.handlers
 import select
 import six
@@ -68,6 +67,20 @@ defaults = {
 
 logger = logging.getLogger(__name__)
 stats = {}
+
+try:
+    from inspect import getfullargspec
+
+    def is_callback_valid(cb):
+        args = getfullargspec(cb).args
+        return len(args) > 1
+except:
+    from inspect import getargspec
+
+    def is_callback_valid(cb):
+        args = getargspec(cb)[0]
+        return len(args) > 1
+
 
 class SniffedPacket(object):
     def __init__(self, macPDUByteArray, timestampBy32):
@@ -278,7 +291,7 @@ class CC2531EMK:
         
         if self.callback is None:
             raise ValueError("A valid callback must be provided")
-        if len(inspect.getargspec(self.callback)[0]) < 2:
+        if not is_callback_valid(self.callback):
             raise ValueError("Callback must have at least 2 arguments")
         
         try:
