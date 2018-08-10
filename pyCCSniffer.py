@@ -289,9 +289,12 @@ class CC2531EMK:
         if self.dev is None:
             raise IOError("Device not found")
 
-        self.dev.set_configuration() # must call this to establish the USB's "Config"
-        self.name = usb.util.get_string(self.dev, 256, 2) # get name from USB descriptor
-        self.ident = self.dev.ctrl_transfer(CC2531EMK.DIR_IN, CC2531EMK.GET_IDENT, 0, 0, 256) # get identity from Firmware command
+        self.dev.set_configuration(
+        )  # must call this to establish the USB's "Config"
+        self.name = self.dev.product or "Default name"
+        self.ident = self.dev.ctrl_transfer(
+            CC2531EMK.DIR_IN, CC2531EMK.GET_IDENT, 0, 0,
+            256)  # get identity from Firmware command
 
         # power on radio, wIndex = 4
         self.dev.ctrl_transfer(CC2531EMK.DIR_OUT, CC2531EMK.SET_POWER, wIndex=4)
