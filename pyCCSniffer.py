@@ -501,22 +501,6 @@ if __name__ == '__main__':
     if args.annotation is not None:
         packetHandler.setAnnotation(args.annotation)
 
-    if args.rude is False:
-        h = StringIO()
-        h.write('Commands:\n')
-        h.write('c: Print current RF Channel\n')
-        h.write('h,?: Print this message\n')
-        h.write('[11,26]: Change RF channel\n')
-        h.write('s: Start/stop the packet capture\n')
-        h.write('d: Toggle frame dissector\n')
-        h.write('a*: Set an annotation (write "a" to remove it)\n')
-        h.write('q: Quit')
-        h = h.getvalue()
-
-        e = 'Unknown Command. Type h or ? for help'
-
-        print(h)
-
     # Create a list of handlers to dispatch to, NB: handlers must have a "handleSniffedPacket" method
     handlers = [packetHandler]
     def handlerDispatcher(timestamp, macPDU):
@@ -535,6 +519,26 @@ if __name__ == '__main__':
 
     snifferDev = CC2531EMK(handlerDispatcher, args.channel)
 
+    def printHelp():
+        h = StringIO()
+        deviceStr = str(snifferDev)
+        h.write(deviceStr + '\n')
+        h.write('-' * len(deviceStr) + '\n')
+        h.write('Commands:\n')
+        h.write('c: Print current RF Channel\n')
+        h.write('h,?: Print this message\n')
+        h.write('[11,26]: Change RF channel\n')
+        h.write('s: Start/stop the packet capture\n')
+        h.write('d: Toggle frame dissector\n')
+        h.write('a*: Set an annotation (write "a" to remove it)\n')
+        h.write('p: Print all capture packets\n')
+        h.write('q: Quit')
+        h = h.getvalue()
+        print(h)
+
+    if args.rude is False:
+        printHelp()
+
     try:
         while 1:
             if args.rude is True:
@@ -548,7 +552,7 @@ if __name__ == '__main__':
                    if '' != cmd:
                         logger.debug('User input: "%s"' % (cmd,))
                         if cmd in ('h', '?'):
-                            print(h)
+                            printHelp()
                         elif cmd == 'c':
                             # We'll only ever see this if the user asked for it, so we are
                             # running interactive. Print away
