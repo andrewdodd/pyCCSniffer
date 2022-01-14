@@ -52,6 +52,7 @@ class CC253xEMK:
     SET_CHAN = 0xd2  # 0x0d (idx 0) + data)0x00 (idx 1)
 
     COMMAND_FRAME = 0x00
+    HEARTBEAT_FRAME = 0x01
 
     COMMAND_CHANNEL = 0x01
 
@@ -127,15 +128,15 @@ class CC253xEMK:
                                       timeout=CC253xEMK.DATA_TIMEOUT)
 
             if len(bytesteam) >= 3:
-                (cmd, cmdLen) = struct.unpack_from("<BH", bytesteam)
-                bytesteam = bytesteam[3:]
-                if len(bytesteam) == cmdLen:
+                (cmd, payload_len) = struct.unpack_from("<BH", bytesteam)
+                payload = bytesteam[3:]
+                if len(payload) == payload_len:
                     # buffer contains the correct number of bytes
                     if CC253xEMK.COMMAND_FRAME == cmd:
-                        logger.info('Read a frame of size %d' % (cmdLen, ))
+                        logger.info(f'Read a frame of size {payload_len}')
                         timestamp, frame_len = struct.unpack_from(
-                            "<IB", bytesteam)
-                        frame = bytesteam[5:]
+                            "<IB", payload)
+                        frame = payload[5:]
 
                         if len(frame) == frame_len:
                             self.handler.received_valid_frame(timestamp, frame)
@@ -143,10 +144,14 @@ class CC253xEMK:
                         else:
                             self.handler.received_invalid_frame(
                                 timestamp, frame_len, frame)
+                    elif CC253xEMK.HEARTBEAT_FRAME == cmd:
+                        self.handler.received_heartbeat_frame(payload[0])
                     else:
-                        self.handler.received_non_frame(cmd, cmdLen, bytesteam)
+                        self.handler.received_unknown_command(
+                            cmd, payload_len, payload)
                 else:
-                    self.handler.received_other(cmd, cmdLen, bytesteam)
+                    self.handler.received_invalid_command(
+                        cmd, payload_len, bytesteam)
 
     def set_channel(self, channel):
         was_running = self.running
@@ -177,6 +182,6 @@ class CC253xEMK:
 
     def __repr__(self):
         if self.dev:
-            return "%s <Channel: %d>" % (self.name, self.channel)
+            return f"{self.name} <Channel: {self.channel}>"
         else:
             return "Not connected"

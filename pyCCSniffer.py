@@ -68,6 +68,7 @@ class DefaultHandler:
                               datetime(1970, 1, 1)).total_seconds()
         self.times_wrapped = 0
         self.__handlers = handlers or []
+        self.last_heartbeat_time = None
 
     def received_valid_frame(self, timestamp, mac_pdu):
         """ Dispatches any received packets to all registered handlers
@@ -94,17 +95,23 @@ class DefaultHandler:
 
     def received_invalid_frame(self, timestamp, frame_len, frame):
         logger.warning(
-            "Received a frame with incorrect length, pkgLen:%d, len(frame):%d"
-            % (frame_len, len(frame)))
+            f"Received a frame with incorrect length, pkgLen:{frame_len}, len(frame):{len(frame)}"
+        )
         self.stats['Non-Frame'] += 1
 
-    def received_non_frame(self, cmd, cmdLen, bytesteam):
-        logger.warning("CMD[{:02x}] Len[{}] Bytes[{}]".format(
-            cmd, cmdLen, hexlify(bytesteam)))
+    def received_heartbeat_frame(self, counter):
+        current_time = datetime.now()
+        delta = current_time - self.last_heartbeat_time if self.last_heartbeat_time else ""
+        logger.warning(f"HEARTBEAT - {counter} - {delta}")
+        self.last_heartbeat_time = current_time
 
-    def received_other(self, cmd, cmdLen, bytesteam):
-        logger.warning("OTHER - CMD[{:02x}] Len[{}] Bytes[{}]".format(
-            cmd, cmdLen, hexlify(bytesteam)))
+    def received_unknown_command(self, cmd, payload_len, payload):
+        logger.warning(
+            f"UNKNOWN - CMD[{cmd:02x}] Len[{payload_len}] Bytes[{payload}]")
+
+    def received_invalid_command(self, cmd, payload_len, payload):
+        logger.warning(
+            f"INVALID - CMD[{cmd:02x}] Len[{payload_len}] Bytes[{payload}]")
 
 
 def arg_parser():
@@ -123,8 +130,9 @@ def arg_parser():
         action='store',
         choices=list(range(11, 27)),
         default=defaults['channel'],
-        help='Set the sniffer\'s CHANNEL. Valid range: 11-26. \
-                                  (Default: %s)' % (defaults['channel'], ))
+        help=
+        f"Set the sniffer's CHANNEL. Valid range: 11-26. (Default: {defaults['channel']}",
+    )
     in_group.add_argument(
         '-a',
         '--annotation',
@@ -132,46 +140,48 @@ def arg_parser():
         help='Include a free-form annotation on every capture.')
 
     log_group = parser.add_argument_group('Verbosity and Logging')
-    log_group.add_argument('-r',
-                           '--rude',
-                           action='store_true',
-                           default=False,
-                           help='Run in non-interactive mode, without \
-                                   accepting user input. (Default Disabled)')
-    log_group.add_argument('-D',
-                           '--debug-level',
-                           action='store',
-                           choices=debug_choices,
-                           default=defaults['debug_level'],
-                           help='Print messages of severity DEBUG_LEVEL \
-                                   or higher (Default %s)' %
-                           (defaults['debug_level'], ))
+    log_group.add_argument(
+        '-r',
+        '--rude',
+        action='store_true',
+        default=False,
+        help=
+        'Run in non-interactive mode, without accepting user input. (Default Disabled)'
+    )
+    log_group.add_argument(
+        '-D',
+        '--debug-level',
+        action='store',
+        choices=debug_choices,
+        default=defaults['debug_level'],
+        help=
+        f"Print messages of severity DEBUG_LEVEL or higher (Default {defaults['debug_level']}",
+    )
     log_group.add_argument('-L',
                            '--log-file',
                            action='store',
                            nargs='?',
                            const=defaults['log_file'],
                            default=False,
-                           help='Log output in LOG_FILE. If -L is specified \
-                                   but LOG_FILE is omitted, %s will be used. \
-                                   If the argument is omitted altogether, \
-                                   logging will not take place at all.' %
-                           (defaults['log_file'], ))
+                           help=f"""Log output in LOG_FILE. If -L is specified 
+                                   but LOG_FILE is omitted, {defaults['log_file']} will be used.
+                                   If the argument is omitted altogether,
+                                   logging will not take place at all.""")
     log_group.add_argument('-l',
                            '--log-level',
                            action='store',
                            choices=debug_choices,
                            default=defaults['log_level'],
-                           help='Log messages of severity LOG_LEVEL or \
-                                   higher. Only makes sense if -L is also \
-                                   specified (Default %s)' %
-                           (defaults['log_level'], ))
+                           help=f"""Log messages of severity LOG_LEVEL or 
+                                   higher. Only makes sense if -L is also 
+                                   specified (Default {defaults['log_level']})"""
+                           )
 
     gen_group = parser.add_argument_group('General Options')
     gen_group.add_argument('-v',
                            '--version',
                            action='version',
-                           version='pyCCSniffer v%s' % (__version__))
+                           version=f'pyCCSniffer v{__version__}')
     gen_group.add_argument('-h',
                            '--help',
                            action='help',
@@ -184,8 +194,8 @@ def dump_stats(stats):
     s = StringIO()
 
     s.write('Frame Stats:\n')
-    for k, v in list(stats.items()):
-        s.write('%20s: %d\n' % (k, v))
+    for name, count in list(stats.items()):
+        s.write(f'{name:20s}: {count}\n')
 
     print(s.getvalue())
 
@@ -256,14 +266,15 @@ if __name__ == '__main__':
                     cmd = input('')
 
                     if '' != cmd:
-                        logger.debug('User input: "%s"' % (cmd, ))
+                        logger.debug(f'User input: "{cmd}"')
                         if cmd in ('h', '?'):
                             printHelp()
                         elif cmd == 'c':
                             # We'll only ever see this if the user asked for it, so we are
                             # running interactive. Print away
-                            print('Sniffing in channel: {:d}'.format(
-                                snifferDev.get_channel()))
+                            print(
+                                f'Sniffing in channel: {snifferDev.get_channel()}'
+                            )
                         elif cmd == 'd':
                             if packetHandler.isEnabled():
                                 packetHandler.disable()
@@ -292,8 +303,9 @@ if __name__ == '__main__':
                                 packetHandler.setAnnotation(cmd[1:].strip())
                         elif int(cmd) in range(11, 27):
                             snifferDev.set_channel(int(cmd))
-                            print('Sniffing in channel: %d' %
-                                  (snifferDev.get_channel(), ))
+                            print(
+                                f'Sniffing in channel: {snifferDev.get_channel()}'
+                            )
                         else:
                             print("Channel must be from 11 to 26 inclusive.")
                 except ValueError:
